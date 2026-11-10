@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Netviber sample subscriptions</title>
+  </head>
+  <body>
+    <outline text="News">
+      <outline text="BBC News" htmlUrl="https://www.bbc.co.uk/news" xmlUrl="http://feeds.bbci.co.uk/news/rss.xml" type="rss"/>
+      <outline text="NPR News" htmlUrl="https://www.npr.org" xmlUrl="https://feeds.npr.org/1001/rss.xml" type="rss"/>
+      <outline text="The Guardian — World" htmlUrl="https://www.theguardian.com/world" xmlUrl="https://www.theguardian.com/world/rss" type="rss"/>
+      <outline text="Regional">
+        <outline text="BBC — Europe" htmlUrl="https://www.bbc.co.uk/news/world/europe" xmlUrl="http://feeds.bbci.co.uk/news/world/europe/rss.xml" type="rss"/>
+      </outline>
+    </outline>
+    <outline text="Tech">
+      <outline text="Hacker News" htmlUrl="https://news.ycombinator.com/" xmlUrl="https://hnrss.org/frontpage" type="rss"/>
+      <outline text="Ars Technica" htmlUrl="https://arstechnica.com" xmlUrl="https://feeds.arstechnica.com/arstechnica/index" type="rss"/>
+      <outline text="Phoronix" htmlUrl="https://www.phoronix.com" xmlUrl="https://www.phoronix.com/rss.php" type="rss"/>
+    </outline>
+    <outline text="xkcd" htmlUrl="https://xkcd.com/" xmlUrl="https://xkcd.com/rss.xml" type="rss"/>
+  </body>
+</opml>
