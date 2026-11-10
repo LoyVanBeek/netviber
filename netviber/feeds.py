@@ -18,7 +18,7 @@ log = logging.getLogger("netviber.feeds")
 USER_AGENT = "Netviber/1.0 (RSS dashboard)"
 FETCH_TIMEOUT = httpx.Timeout(10.0)
 CONCURRENCY = 8
-MAX_ITEMS = 15
+MAX_ITEMS = 40  # stored per feed; the UI paginates tiles at 10 per page
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")

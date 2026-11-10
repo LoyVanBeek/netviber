@@ -8,11 +8,13 @@ const READ_KEY = "netviber.read";
 const POLL_MS = 1500;
 const READ_MAX_AGE = 30 * 24 * 3600 * 1000; // forget read state after 30 days
 const READ_MAX_ITEMS = 10000;
+const PAGE_SIZE = 10; // headlines per tile page
 
 let state = { tabs: [], feeds: [], cache: {} };
 let watching = false;
 let autoTimer = null;
 let readSet = loadReadSet();
+const pageMap = {}; // feedId -> current page index (0 = newest)
 
 const el = {
   topbar: $("#topbar"),
@@ -297,13 +299,17 @@ function tile(feed) {
   const list = document.createElement("ul");
   list.className = "items";
   const items = cache.items ?? [];
+  const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  pageMap[feed.id] = Math.min(pageMap[feed.id] ?? 0, pages - 1);
+  const page = pageMap[feed.id];
+  const visible = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
   if (!items.length && cache.status !== "pending") {
     const li = document.createElement("li");
     li.className = "muted";
     li.textContent = "No headlines yet.";
     list.append(li);
   }
-  for (const item of items) {
+  for (const item of visible) {
     const li = document.createElement("li");
     const unread = !isRead(item);
     li.className = unread ? "unread" : "read";
@@ -334,6 +340,34 @@ function tile(feed) {
     list.append(li);
   }
   tile.append(list);
+
+  if (pages > 1) {
+    const pager = document.createElement("div");
+    pager.className = "pager";
+    const prev = document.createElement("button");
+    prev.className = "icon-btn";
+    prev.textContent = "‹ newer";
+    prev.title = "Show newer headlines";
+    prev.disabled = page === 0;
+    prev.addEventListener("click", () => {
+      pageMap[feed.id] = page - 1;
+      renderGrid();
+    });
+    const label = document.createElement("span");
+    label.className = "pager-label";
+    label.textContent = `${page + 1} / ${pages}`;
+    const next = document.createElement("button");
+    next.className = "icon-btn";
+    next.textContent = "older ›";
+    next.title = "Show older headlines";
+    next.disabled = page >= pages - 1;
+    next.addEventListener("click", () => {
+      pageMap[feed.id] = page + 1;
+      renderGrid();
+    });
+    pager.append(prev, label, next);
+    tile.append(pager);
+  }
 
   const foot = document.createElement("footer");
   function updateFoot() {
