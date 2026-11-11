@@ -45,14 +45,13 @@ gitignored, so a fresh clone starts at the OPML import screen.
 Publish the repo from your machine:
 
 ```sh
-git remote add origin git@github.com:you/netviber.git
-git push -u origin main
+git push    # origin = git@github.com:LoyVanBeek/netviber.git, branch master
 ```
 
 On the Pi (64-bit OS, Docker + compose plugin installed):
 
 ```sh
-git clone git@github.com:you/netviber.git && cd netviber
+git clone git@github.com:LoyVanBeek/netviber.git && cd netviber
 cp .env.example .env    # optional, e.g. NETVIBER_PORT if 8377 is taken
 ./deploy/install-service.sh
 sudo loginctl enable-linger $USER
