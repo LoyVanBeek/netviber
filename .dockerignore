@@ -1,0 +1,13 @@
+# Build context for the Docker image: code and metadata only.
+.git/
+.gitignore
+.venv/
+data/
+tests/
+examples/
+.pytest_cache/
+__pycache__/
+*.pyc
+compose.yaml
+Dockerfile
+deploy/

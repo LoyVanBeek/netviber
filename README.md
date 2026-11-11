@@ -7,14 +7,59 @@ tabs by their OPML folders.
 ## Quick start
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python -m netviber --opml examples/sample.opml
+uv sync                               # create .venv from pyproject.toml + uv.lock
+uv run netviber --opml examples/sample.opml
 ```
 
 Open http://127.0.0.1:8377 (the browser opens automatically unless you pass
 `--no-open`). On first run the app shows an import screen: drop any `.opml`
 file on it and you're done.
+
+## Run as a service (Docker + systemd)
+
+The same app runs as a container managed by a user-level systemd unit, so it
+starts on boot and survives crashes:
+
+```sh
+./deploy/install-service.sh
+sudo loginctl enable-linger $USER     # start the unit at boot without login
+```
+
+The script checks Docker access, builds the image, installs the user unit and
+enables it. The container publishes port 8377 on all interfaces and mounts
+`./data` as `/app/data`, so your imported OPML and cached headlines persist.
+Manage it with `systemctl --user {status,restart,stop} netviber`; logs are in
+the user journal (`journalctl --user -u netviber`) and `docker compose logs`.
+
+Port and container uid are configurable via a `.env` next to `compose.yaml`
+(see `.env.example`). Requires Docker access from your user session (e.g.
+membership in the `docker` group). The dashboard has no authentication —
+exposing it on all interfaces makes it reachable from any device on your LAN.
+
+## Deploy on another host (e.g. a Raspberry Pi)
+
+The image builds natively on arm64 — the base image provides amd64 + arm64 —
+so a 64-bit Pi needs nothing special. State is per device: `data/` is
+gitignored, so a fresh clone starts at the OPML import screen.
+
+Publish the repo from your machine:
+
+```sh
+git remote add origin git@github.com:you/netviber.git
+git push -u origin main
+```
+
+On the Pi (64-bit OS, Docker + compose plugin installed):
+
+```sh
+git clone git@github.com:you/netviber.git && cd netviber
+cp .env.example .env    # optional, e.g. NETVIBER_PORT if 8377 is taken
+./deploy/install-service.sh
+sudo loginctl enable-linger $USER
+```
+
+Then open `http://<pi-address>:8377` and drop in your OPML file. Updating the
+deployment later: `git pull && docker compose up -d --build`.
 
 ## Usage
 

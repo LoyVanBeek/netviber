@@ -1,0 +1,20 @@
+services:
+  netviber:
+    build:
+      context: .
+      args:
+        # Container user uid; should match the host user that owns ./data.
+        UID: ${UID:-1000}
+    image: netviber:latest
+    container_name: netviber
+    ports:
+      - "${NETVIBER_PORT:-8377}:8377"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8377/api/state', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
