@@ -17,24 +17,26 @@ file on it and you're done.
 
 ## Run as a service (Docker + systemd)
 
-The same app runs as a container managed by a user-level systemd unit, so it
-starts on boot and survives crashes:
+The same app runs as a container managed by a system-level systemd unit, so it
+starts at boot and survives crashes:
 
 ```sh
-./deploy/install-service.sh
-sudo loginctl enable-linger $USER     # start the unit at boot without login
+sudo ./deploy/install-service.sh
 ```
 
-The script checks Docker access, builds the image, installs the user unit and
-enables it. The container publishes port 8377 on all interfaces and mounts
-`./data` as `/app/data`, so your imported OPML and cached headlines persist.
-Manage it with `systemctl --user {status,restart,stop} netviber`; logs are in
-the user journal (`journalctl --user -u netviber`) and `docker compose logs`.
+The script checks Docker, builds the image, installs the unit to
+`/etc/systemd/system/netviber.service` (with this checkout's absolute path) and
+enables it. No linger or user-session setup is needed — system units start at
+boot on their own. The container publishes port 8377 on all interfaces and
+mounts `./data` as `/app/data`, so your imported OPML and cached headlines
+persist.
+
+Manage it with `systemctl {status,restart,stop} netviber`; logs are in
+`journalctl -u netviber` and `docker compose logs`.
 
 Port and container uid are configurable via a `.env` next to `compose.yaml`
-(see `.env.example`). Requires Docker access from your user session (e.g.
-membership in the `docker` group). The dashboard has no authentication —
-exposing it on all interfaces makes it reachable from any device on your LAN.
+(see `.env.example`). The dashboard has no authentication — exposing it on all
+interfaces makes it reachable from any device on your LAN.
 
 ## Deploy on another host (e.g. a Raspberry Pi)
 
@@ -53,12 +55,12 @@ On the Pi (64-bit OS, Docker + compose plugin installed):
 ```sh
 git clone git@github.com:LoyVanBeek/netviber.git && cd netviber
 cp .env.example .env    # optional, e.g. NETVIBER_PORT if 8377 is taken
-./deploy/install-service.sh
-sudo loginctl enable-linger $USER
+sudo ./deploy/install-service.sh
 ```
 
 Then open `http://<pi-address>:8377` and drop in your OPML file. Updating the
-deployment later: `git pull && docker compose up -d --build`.
+deployment later: `git pull && sudo ./deploy/install-service.sh` (rebuilds and
+restarts the container).
 
 ## Usage
 
