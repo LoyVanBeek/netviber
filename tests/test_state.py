@@ -1,6 +1,8 @@
 """Tests for state persistence and re-import cache carry-over."""
 
-from netviber.state import StateStore
+import time
+
+from netviber.state import READ_MAX_ITEMS, StateStore
 
 TABS = [{"id": "t1", "title": "News"}]
 FEEDS = [
@@ -53,6 +55,35 @@ def test_save_is_atomic_and_wellformed(tmp_path):
     import json
 
     data = json.loads((tmp_path / "s.json").read_text(encoding="utf-8"))
-    assert set(data) == {"tabs", "feeds", "cache"}
+    assert set(data) == {"tabs", "feeds", "cache", "read"}
     leftovers = [p for p in tmp_path.iterdir() if p.name.startswith(".netviber-")]
     assert leftovers == []
+
+
+def test_mark_read_persists_and_round_trips(tmp_path):
+    store = seed(tmp_path)
+    marked = store.mark_read(["item1", "item2"])
+    assert marked == 2
+    store.save()
+    reloaded = StateStore(tmp_path / "s.json")
+    assert set(reloaded.state["read"]) == {"item1", "item2"}
+    assert reloaded.mark_read(["item1"]) == 0  # idempotent
+
+
+def test_mark_read_prunes_old_entries(tmp_path):
+    store = seed(tmp_path)
+    old = time.time() - 31 * 24 * 3600
+    store.state["read"] = {"stale": old, "fresh": time.time()}
+    store.mark_read(["item3"])
+    assert "stale" not in store.state["read"]
+    assert {"fresh", "item3"} <= set(store.state["read"])
+
+
+def test_mark_read_capped_at_max_items(tmp_path):
+    store = seed(tmp_path)
+    now = time.time()
+    store.state["read"] = {f"item{i}": now - i for i in range(READ_MAX_ITEMS)}
+    store.mark_read(["newitem"])
+    assert len(store.state["read"]) == READ_MAX_ITEMS
+    assert "item9999" not in store.state["read"]  # oldest dropped
+    assert "newitem" in store.state["read"]

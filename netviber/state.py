@@ -12,11 +12,15 @@ import json
 import logging
 import os
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 log = logging.getLogger("netviber.state")
+
+READ_MAX_AGE = 30 * 24 * 3600  # forget read marks older than 30 days
+READ_MAX_ITEMS = 10000  # newest read marks win
 
 
 def new_id(prefix: str) -> str:
@@ -84,6 +88,30 @@ class StateStore:
             fid: entry for fid, entry in self._state["cache"].items() if fid in keep
         }
 
+    def mark_read(self, keys: list[str]) -> int:
+        """Record read marks (key -> timestamp). Read-only: no unmarking.
+
+        Returns the number of previously-unread keys that were marked.
+        """
+        read = self._state["read"]
+        marked = 0
+        for key in keys:
+            if key not in read:
+                marked += 1
+            read[key] = int(time.time())
+        self._prune_read()
+        return marked
+
+    def _prune_read(self) -> None:
+        read = self._state["read"]
+        cutoff = int(time.time()) - READ_MAX_AGE
+        if any(ts < cutoff for ts in read.values()):
+            for key in [k for k, ts in read.items() if ts < cutoff]:
+                del read[key]
+        if len(read) > READ_MAX_ITEMS:
+            newest = sorted(read.items(), key=lambda kv: kv[1], reverse=True)
+            self._state["read"] = dict(newest[:READ_MAX_ITEMS])
+
     def clear_stale_pending(self) -> None:
         """Resolve entries stuck as "pending" (e.g. after a crash mid-refresh)."""
         for entry in self._state["cache"].values():
@@ -112,7 +140,7 @@ class StateStore:
     # -- internals ---------------------------------------------------------
 
     def _load(self) -> dict[str, Any]:
-        empty: dict[str, Any] = {"tabs": [], "feeds": [], "cache": {}}
+        empty: dict[str, Any] = {"tabs": [], "feeds": [], "cache": {}, "read": {}}
         if not self.path.exists():
             return empty
         try:
@@ -125,4 +153,15 @@ class StateStore:
         for key in ("tabs", "feeds", "cache"):
             if isinstance(data.get(key), (list, dict)):
                 empty[key] = data[key]
+        read = data.get("read")
+        if isinstance(read, dict):
+            clean = {
+                k: int(v)
+                for k, v in read.items()
+                if isinstance(v, (int, float))
+            }
+            empty["read"] = clean
+            self._state = empty
+            self._prune_read()
+            return self._state
         return empty
