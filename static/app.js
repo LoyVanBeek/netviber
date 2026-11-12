@@ -6,14 +6,17 @@ const REFRESH_KEY = "netviber.refreshMinutes";
 const TAB_KEY = "netviber.activeTab";
 const READ_KEY = "netviber.read";
 const POLL_MS = 1500;
-const READ_MAX_AGE = 30 * 24 * 3600 * 1000; // forget read state after 30 days
+const READ_SYNC_MS = 5000; // cross-device read-state sync poll
+const READ_MAX_AGE = 30 * 24 * 3600; // forget read state after 30 days (seconds)
 const READ_MAX_ITEMS = 10000;
 const PAGE_SIZE = 10; // headlines per tile page
 
-let state = { tabs: [], feeds: [], cache: {} };
+let state = { tabs: [], feeds: [], cache: {}, read: {} };
 let watching = false;
 let autoTimer = null;
-let readSet = loadReadSet();
+let readSet = loadReadSet(); // merged read marks; server is source of truth
+let pendingKeys = new Set(); // read marks queued for the server
+let flushTimer = null;
 const pageMap = {}; // feedId -> current page index (0 = newest)
 
 const el = {
@@ -49,16 +52,22 @@ async function init() {
   setupDropzone();
 
   await loadState();
+  migrateReadSet();
+  setInterval(syncReadSet, READ_SYNC_MS);
   scheduleAuto();
   refreshIfStale();
 }
 
 /* ---------- read state ---------- */
 
+/* Read marks live on the server (shared across devices); this localStorage
+   copy is an offline cache and the migration source for pre-existing
+   browser-local marks. Timestamps are unix seconds. */
+
 function loadReadSet() {
   try {
     const raw = JSON.parse(localStorage.getItem(READ_KEY) ?? "{}");
-    const cutoff = Date.now() - READ_MAX_AGE;
+    const cutoff = Date.now() / 1000 - READ_MAX_AGE;
     const clean = {};
     for (const [key, ts] of Object.entries(raw)) {
       if (typeof ts === "number" && ts > cutoff) clean[key] = ts;
@@ -78,6 +87,20 @@ function saveReadSet() {
   localStorage.setItem(READ_KEY, JSON.stringify(readSet));
 }
 
+/* Merge the server's read set with any browser-local marks; push local-only
+   marks (pre-existing or made offline) to the server. One-time migration +
+   catch-up. */
+function migrateReadSet() {
+  const server = state.read ?? {};
+  const local = loadReadSet();
+  const missing = Object.keys(local).filter((k) => !Object.hasOwn(server, k));
+  readSet = { ...server, ...local };
+  if (missing.length) {
+    pushReadMarks(missing);
+  }
+  saveReadSet();
+}
+
 function itemKey(item) {
   return item.id || item.link || item.title;
 }
@@ -87,8 +110,57 @@ function isRead(item) {
 }
 
 function markRead(key) {
-  readSet[key] = Date.now();
+  readSet[key] = Math.floor(Date.now() / 1000);
   saveReadSet();
+  pendingKeys.add(key);
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(flushPending, 500);
+}
+
+function pushReadMarks(keys) {
+  fetch("/api/read", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(keys),
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    })
+    .catch(() => {
+      // Offline or hiccup: keep them queued for the next sync.
+      for (const key of keys) pendingKeys.add(key);
+    });
+}
+
+function flushPending() {
+  if (!pendingKeys.size) return;
+  const keys = [...pendingKeys];
+  pendingKeys.clear();
+  pushReadMarks(keys);
+}
+
+/* Pull read marks from the server (another device may have added some);
+   flush any locally queued ones first. Read-only: no deletions. */
+async function syncReadSet() {
+  flushPending();
+  try {
+    const res = await fetch("/api/read");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { read } = await res.json();
+    let changed = false;
+    for (const [key, ts] of Object.entries(read)) {
+      if (!Object.hasOwn(readSet, key)) {
+        readSet[key] = ts;
+        changed = true;
+      }
+    }
+    if (changed) {
+      renderGrid();
+      renderTabs();
+    }
+  } catch {
+    // Offline; local cache still tracks marks made here.
+  }
 }
 
 function unreadCount(feed) {

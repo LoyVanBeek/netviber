@@ -6,7 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import Body, FastAPI, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 
 from . import opml
@@ -51,10 +51,22 @@ def create_app(data_dir: Path | None = None, opml_file: Path | None = None) -> F
         yield
 
     app = FastAPI(title="Netviber", version="1.0.0", lifespan=lifespan)
+    app.state.store = store
 
     @app.get("/api/state")
     async def get_state():
         return store.snapshot()
+
+    @app.get("/api/read")
+    async def get_read():
+        return {"read": store.state["read"]}
+
+    @app.post("/api/read")
+    async def mark_read(keys: list[str] = Body(..., min_length=1)):
+        """Mark items read (key -> timestamp). Read-only: no unmarking."""
+        marked = store.mark_read(keys)
+        store.save()
+        return {"marked": marked}
 
     @app.post("/api/import")
     async def import_opml(file: UploadFile):
