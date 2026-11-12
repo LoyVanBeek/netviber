@@ -81,13 +81,11 @@ button, select { font: inherit; color: inherit; }
 .tab .count {
   margin-left: 7px;
   font-size: 11px;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--border);
+  color: var(--accent);
+  background: var(--accent-dim);
   border-radius: 99px;
   padding: 1px 7px;
 }
-.tab.active .count { color: var(--accent); border-color: var(--accent-dim); }
 
 .actions {
   display: flex;

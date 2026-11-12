@@ -205,15 +205,19 @@ function renderTabs() {
   el.tabs.replaceChildren();
   const active = activeTabId();
   for (const tab of state.tabs) {
-    const count = state.feeds.filter((f) => f.tab_id === tab.id).length;
+    const feeds = state.feeds.filter((f) => f.tab_id === tab.id);
+    const unread = feeds.reduce((sum, f) => sum + unreadCount(f), 0);
     const btn = document.createElement("button");
     btn.className = "tab" + (tab.id === active ? " active" : "");
     btn.setAttribute("role", "tab");
     btn.textContent = tab.title;
-    const badge = document.createElement("span");
-    badge.className = "count";
-    badge.textContent = count;
-    btn.append(badge);
+    if (unread > 0) {
+      const badge = document.createElement("span");
+      badge.className = "count";
+      badge.textContent = unread;
+      badge.title = `${unread} unread in this tab`;
+      btn.append(badge);
+    }
     btn.addEventListener("click", () => {
       localStorage.setItem(TAB_KEY, tab.id);
       renderTabs();
@@ -279,6 +283,7 @@ function tile(feed) {
   markAll.addEventListener("click", () => {
     for (const item of cache.items ?? []) markRead(itemKey(item));
     renderGrid();
+    renderTabs();
   });
   const btn = document.createElement("button");
   btn.className = "icon-btn";
@@ -324,6 +329,7 @@ function tile(feed) {
         li.classList.remove("unread");
         li.classList.add("read");
         updateFoot();
+        renderTabs();
       });
       li.append(a);
     } else {
