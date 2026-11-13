@@ -123,19 +123,23 @@ class StateStore:
                     entry["error"] = "Refresh interrupted"
 
     def save(self) -> None:
-        fd, tmp = tempfile.mkstemp(
-            dir=str(self.path.parent), prefix=".netviber-", suffix=".tmp"
-        )
+        tmp = None
         try:
+            fd, tmp = tempfile.mkstemp(
+                dir=str(self.path.parent), prefix=".netviber-", suffix=".tmp"
+            )
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 json.dump(self._state, fh, ensure_ascii=False, indent=1)
             os.replace(tmp, self.path)
         except OSError:
+            # Never let a write failure take the app down (e.g. an unwritable
+            # data dir): log it and keep serving with in-memory state.
             log.exception("Failed to write state file %s", self.path)
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
+            if tmp is not None:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
 
     # -- internals ---------------------------------------------------------
 

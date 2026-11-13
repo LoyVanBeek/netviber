@@ -11,7 +11,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UNIT_PATH=/etc/systemd/system/netviber.service
-CONTAINER_UID="${UID:-1000}"
+IMAGE=netviber:latest  # keep in sync with compose.yaml
 
 echo "==> Repo: $REPO_DIR"
 
@@ -29,13 +29,19 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 
 # -- prepare -----------------------------------------------------------------
-# The state dir must exist and be owned by the container user BEFORE the first
-# `compose up`, or docker creates it root-owned and the container can't write.
+# The state dir must exist BEFORE the first `compose up`, or docker creates
+# it root-owned and the container can't write.
 mkdir -p "$REPO_DIR/data"
-chown "$CONTAINER_UID:$CONTAINER_UID" "$REPO_DIR/data"
 
 echo "==> Building image (first run pulls the base image; be patient)"
 docker compose -f "$REPO_DIR/compose.yaml" build
+
+# The container runs as the user baked into the image (see Dockerfile), so ask
+# the image for its uid instead of guessing: under sudo, bash's $UID is 0,
+# which would make the state dir root-owned and unwritable for the container.
+CONTAINER_UID="$(docker run --rm --entrypoint id "$IMAGE" -u 2>/dev/null || echo 1000)"
+echo "==> Container runs as uid $CONTAINER_UID; fixing ./data ownership"
+chown -R "$CONTAINER_UID:$CONTAINER_UID" "$REPO_DIR/data"
 
 # -- systemd unit ------------------------------------------------------------
 sed "s|@REPO_DIR@|$REPO_DIR|g" "$REPO_DIR/deploy/netviber.service" > "$UNIT_PATH"

@@ -1,6 +1,9 @@
 """Tests for state persistence and re-import cache carry-over."""
 
+import os
 import time
+
+import pytest
 
 from netviber.state import READ_MAX_ITEMS, StateStore
 
@@ -87,3 +90,19 @@ def test_mark_read_capped_at_max_items(tmp_path):
     assert len(store.state["read"]) == READ_MAX_ITEMS
     assert "item9999" not in store.state["read"]  # oldest dropped
     assert "newitem" in store.state["read"]
+
+
+def test_save_survives_unwritable_dir(tmp_path):
+    # A root-owned data dir (bad install) must not take the app down.
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("root bypasses directory permissions")
+    ro = tmp_path / "ro"
+    ro.mkdir()
+    store = StateStore(ro / "s.json")
+    ro.chmod(0o555)
+    try:
+        store.mark_read(["k"])
+        store.save()  # must not raise
+    finally:
+        ro.chmod(0o755)
+    assert store.state["read"] == {"k": store.state["read"]["k"]}
